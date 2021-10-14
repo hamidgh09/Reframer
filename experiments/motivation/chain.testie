@@ -1,0 +1,399 @@
+%info
+Packet train tests with forwarding and NAT NFs
+
+Example usage:
+    ./npf-compare.py rsspp+chain:chain --testie ~/workspace/chain.testie --cluster client=nslrack24,nic=0 dut=nslrack23,nic=0 --tags promisc --show-cmd --force-retest --show-full --config n_runs=1 --show-files --output --output-columns x all --tags stgen gdb
+// List of variables
+%variables
+
+// generator script directory
+WORKING_DIR=/home/hamid/workspace/motivation
+
+// Trace files location
+TRACE_BASE=/mnt/traces/synthetic
+
+//Firewall Rules File
+RULES_FILE=/home/hamid/npf/npf/rules
+
+// Number of clients (flows)
+C=10000
+
+// Number of consecutive packets from each client (interleave)
+// I={1,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32}
+I=[1-32]
+
+// Number of packets per flow
+N=400
+
+// Length of each packet
+PLENGTH=1000
+
+// Number of flows per client
+CLIENTFLOWS=1
+
+
+// Total number of packets
+LIMIT=4000000
+
+// Proto
+PROTO=UDP
+
+// Pause the sender until the receiver gets all packets
+PAUSE=full
+
+// Put the NIC in promiscuous mode
+PROMISC=true
+
+// Maximum transfer unit
+MTU=9000
+
+// Number of Rx queues must not exceed 8 if LRO is enabled
+RX_QUEUES=4
+
+// Number of CPU cores 
+CORES=4
+
+// Queue size at the transmission element
+TX_QUEUE_SIZE=1024
+
+// Batch size
+BURST=32
+
+// Aggregate number of threads
+RSS_AGG=1
+
+// Number of buckets in NIC's redirection table
+RETA_SIZE=128
+
+// Implementation specific variables
+chain:LRO=false
+chain-lro:LRO=true
+
+cache-stats-enabled=true
+
+
+//Chain Configuration
+NATMODULE?=
+nat:NATMODULE+= -> nat :: NAT()
+
+fw:FW=1
+caching:FWCACHING=true
+
+router:ROUTER=200
+
+
+gdb:GDB=gdb -ex run -ex "signal 2" -ex bt -batch -args
+
+//---------------------------
+// Generator configurations
+//---------------------------
+// The following late_variables and script will generate the trace for C flows of N packets, with interleaved bursts of I packets
+%late_variables
+
+// NDESC=$(( int( max(32, 256 / $RX_QUEUES) ) ))
+NDESC=256
+
+DUT_CORES=EXPAND($(($CORES -1)))
+
+FW?=0
+FWCACHING?=false
+
+trace=EXPAND(${TRACE_BASE}/trace-${PROTO}-C${C}-I${I}-F${CLIENTFLOWS}.pcap)
+
+// CGEN=[0-4095]
+// CLIENTS=EXPAND(Fast${PROTO}Flows(RATE 0, LENGTH $PLENGTH, LIMIT $(( int($LIMIT / $C) )), SRCETH ${client:0:mac}, SRCIP 10.$((int(${CGEN} / 256) )).$((${CGEN} % 256 )).1, DSTETH ${dut:0:mac}, DSTIP ${dut:0:ip}, FLOWS $CLIENTFLOWS, FLOWSIZE $N, STOP true) -> NumberPacket(OFFSET 52) -> [$CGEN]rr;)
+// CLIENTS=HEAD($C, $CLIENTS)
+// CGEN=
+
+DPIMODULE?=
+dpi:DPIMODULE+= -> FlowIPManagerIMP(CAPACITY 10000) -> FlowHyperScan(FILE /home/hamid/workspace/reframer/patterns2, VERBOSE 0)
+
+FCMODULE?=
+fc:FCMODULE+= -> FlowIPManagerIMP(CAPACITY 100000) -> fc :: FlowCounter
+
+router_dir=EXPAND(${NPF_TESTIE_PATH}/router-${ROUTER}.click)
+ROUTER_REQUIRE=
+router:ROUTER_REQUIRE=EXPAND(require(library $router_dir);)
+
+ROUTER_E?=
+router:ROUTER_E+= -> Router()
+
+%config
+timeout=120
+var_names={LATENCY: Latency,RCV-BURST: Flow burst size,C:Number of clients,RX_QUEUES:RX Queues,I:Interleave Factor,LAT-MAX:Maximum Latency,LAT-P99:99th perc. Latency,LAT-P95:95th perc. Latency,LAT-P75:75th perc. Latency,LAT-P50:Median Latency,LAT-AVG:Average Latency,LAT-P25:25th perc. Latency,LAT-P01:1st perc. Latency,LAT-MIN:Minimum Latency,TX-COUNT:Tx Count,TX-BYTE-RATE:Tx Rate,TX-PACKET-RATE:Tx Rate,RX-COUNT:Rx Count,RX-HW-COUNT:Rx HW Count,RX-SW-COUNT:Rx SW Count,RX-COUNT-DROPPED:Rx Drop Count,RX-BYTE-RATE:Rx Rate,RX-PACKET-RATE:Rx Rate,RX-THROUGHPUT:Throughput,DUT-HW-COUNT:DUT HW Count,DUT-SW-COUNT:DUT SW Count,DUT-ALIGNED-COUNT:DUT Count Aligned,DUT-UNALIGNED-COUNT:DUT Count Unaligned,DUT-ALIGNED-UNALIGNED-COUNT:DUT Count,DUT-ALIGNED-RATIO:DUT Aligned/Total,DUT-UNALIGNED-RATIO:DUT Unaligned/Total,TOT-AVG-FRAME-LEN:Average Frame Length,TESTTIME:Experiment Duration,RCVTIME:Processing Duration,TOTAL-LLC-MISSES:Number of LLC Misses x1000, TOTAL-L1-MISSES: Number of L1 Misses x1000, TOTAL-LLC-LOADS: Number of LLC Loads x1000, TOTAL-L1-LOADS: Number of L1 Loads x1000, L1-RATIO: L1 miss ratio, LLC-RATIO: LLC miss ratio, TOTAL-CYCLES: CPU Cycles x10e6, DUT-CYCLES: CPU Cycles x10e6, DUT-CYCLES-PP: CPU Cycles per packet, LLC-MISSES-PP: LLC misses per packet, MISSES-PP: L1 misses per packet}
+
+var_unit={I:grouped packets,LAT-MAX:μs,LAT-P99:μs,LAT-P95:μs,LAT-P75:μs,LAT-P50:μs,LAT-AVG:μs,LAT-P25:μs,LAT-P01:μs,LAT-MIN:μs,TX-COUNT:Mpackets,TX-BYTE-RATE:Gbps,TX-PACKET-RATE:Mpackets/sec,RX-COUNT:Mpackets,RX-HW-COUNT:Mpackets,RX-SW-COUNT:Mpackets,RX-COUNT-DROPPED:Mpackets,RX-BYTE-RATE:Gbps,RX-PACKET-RATE:Mpackets/sec,RX-THROUGHPUT:Gbps,THROUGHPUT:Gbps,DUT-HW-COUNT:Mpackets,DUT-SW-COUNT:Mpackets,DUT-ALIGNED-COUNT:Mpackets,DUT-UNALIGNED-COUNT:Mpackets,DUT-ALIGNED-UNALIGNED-COUNT:Mpackets,DUT-ALIGNED-RATIO:%,DUT-UNALIGNED-RATIO:%,TOT-AVG-FRAME-LEN:bytes,TESTTIME:seconds,RCVTIME:seconds,TOTAL-LLC-MISSES: ,TOTAL-L1-MISSES: ,TOTAL-LLC-LOADS: ,TOTAL-L1-LOADS: ,L1-RATIO: ,LLC-RATIO: ,TOTAL-CYCLES: ,DUT-CYCLES: ,DUT-CYCLES-PP:  ,LLC-MISSES-PP: ,MISSES-PP: }
+
+var_format={I:%2d,LAT-MAX:%.1f,LAT-P99:%.1f,LAT-P95:%.1f,LAT-P75:%.1f,LAT-P50:%.1f,LAT-AVG:%.1f,LAT-P25:%.1f,LAT-P01:%.1f,LAT-MIN:%.1f,TX-COUNT:%.1f,TX-BYTE-RATE:%.1f,TX-PACKET-RATE:%.1f,RX-COUNT:%.1f,RX-HW-COUNT:%.1f,RX-SW-COUNT:%.1f,RX-COUNT-DROPPED:%.1f,RX-BYTE-RATE:%.1f,RX-PACKET-RATE:%.1f,RX-THROUGHPUT:%.1f,DUT-HW-COUNT:%.1f,DUT-SW-COUNT:%.1f,DUT-ALIGNED-COUNT:%.1f,DUT-UNALIGNED-COUNT:%.1f,DUT-ALIGNED-UNALIGNED-COUNT:%.1f,DUT-ALIGNED-RATIO:%4.1f,DUT-UNALIGNED-RATIO:%4.1f,TOT-AVG-FRAME-LEN:%4d,TESTTIME:%.2f,RCVTIME:%.2f,TOTAL-LLC-MISSES:%.1f,TOTAL-L1-MISSES:%.1f,TOTAL-LLC-LOADS:%.1f,TOTAL-L1-LOADS:%.1f,L1-RATIO:%.3f,LLC-RATIO:%.3f,TOTAL-CYCLES:%.1f,DUT-CYCLES:%.1f,DUT-CYCLES-PP:%.1f,LLC-MISSES-PP:%.2f,MISSES-PP:%.2f}
+
+var_divider={TX-COUNT:1000000,TX-BYTE-RATE:1000000000,TX-PACKET-RATE:1000000,RX-COUNT:1000000,RX-HW-COUNT:1000000,RX-SW-COUNT:1000000,RX-COUNT-DROPPED:1000000,RX-BYTE-RATE:1000000000,RX-PACKET-RATE:1000000,RX-THROUGHPUT:1000000000,THROUGHPUT:1000000000,DUT-HW-COUNT:1000000,DUT-SW-COUNT:1000000,DUT-ALIGNED-COUNT:1000000,DUT-UNALIGNED-COUNT:1000000,DUT-ALIGNED-UNALIGNED-COUNT:1000000,TOTAL-LLC-MISSES:1000,TOTAL-L1-MISSES:1000,TOTAL-LLC-LOADS:1000,TOTAL-L1-LOADS:1000,L1-RATIO:0.01,LLC-RATIO:0.01,TOTAL-CYCLES:1000000,DUT-CYCLES:1000000, DUT-CYCLES-PP:1, LLC-MISSES-PP:1, MISSES-PP:1}
+
+//var_ticks={I:1+2+4+8+16+32}
+
+accept_zero={DUT-UNALIGNED-COUNT,DUT-UNALIGNED-RATIO}
+
+// var_lim={LATENCY:0-230,THROUGHPUT:0-65,DUT-CYCLES-PP:0-2200,MISSES-PP:0-60}
+
+
+%script@client deps=fastclick autokill=false sudo=true name=gen timeout=1200
+mkdir -p ${WORKING_DIR}/conf
+rm -f $TRACE_BASE/*
+
+echo "Generating trace configuration files!"
+echo "NDESC IS: "
+echo ${NDESC}
+
+python3.6 ${WORKING_DIR}/generator.py --print-rules -clients ${C} -conf-loc ${WORKING_DIR}/conf/ -plength ${PLENGTH} -trace-loc ${TRACE_BASE} -client-flows ${CLIENTFLOWS} -pkt-per-flow ${N} -limit ${LIMIT} -src-eth ${client:0:mac} -dst-eth ${dut:0:mac} -dst-ip ${dut:0:ip} -rules-file ${RULES_FILE} -interleave ${I}
+
+echo "Generating trace ${trace}... This will take a while!"
+click ${WORKING_DIR}/conf/generator${I}.click
+
+echo "EVENT TRACE_FINISHED"
+
+%file@client gen.click
+td :: ToDump("$TRACE");
+rr :: RoundRobinMultiSched(N $I)
+    -> Unqueue
+-> td;
+$CLIENTS
+
+// This import will instantiate the generator and play the trace
+%-stgen,-noplay:import@client fastclick-replay-single-mt nolinktest=1 waitfor=TRACE_FINISHED PKTGEN_REPLAY_COUNT=5 delay=5 autokill=false
+%stgen,-noplay:import@client fastclick-replay-single nolinktest=1 waitfor=TRACE_FINISHED PKTGEN_REPLAY_COUNT=5 delay=5 autokill=false
+
+%perf:import@dut perf-functions delay=12 waitfor=TRACE_FINISHED
+
+//-------------------
+// DUT configurations
+//-------------------
+
+//------------------------ Beginning of Chain -----------------------
+%-dutmid:import@dut cpufreq-script CPUFREQ=1200
+%dutmid:import@dut cpufreq-script CPUFREQ=2300
+
+%file@dut chain.config
+define(
+    $iface       ${dut:0:pci},
+    $rxQueues    ${RX_QUEUES},
+    $ndesc       ${NDESC},
+    $txQueueSize ${TX_QUEUE_SIZE},
+    $burst       ${BURST},
+    $pause       ${PAUSE},
+    $promisc     ${PROMISC},
+    $mtu         ${MTU},
+    $rssAgg      ${RSS_AGG},
+    $lro         ${LRO},
+    $verbose     99,
+    $rules       ${RULES_FILE}
+);
+
+${ROUTER_REQUIRE}
+
+DPDKInfo(NB_MBUF 1048576, MBUF_SIZE 4096, MBUF_CACHE_SIZE 512)
+
+AddressInfo(
+    lan_interface ${dut:0:ip} ${dut:0:mac},
+    wan_interface 10.1.0.128     00:0c:29:64:de:ab
+);
+
+elementclass NAT {
+    // IP Classifier before the NAT
+    ip_rw_l :: IPClassifier(proto tcp, proto udp, -);
+
+    // NAT logic
+    rwpattern :: IPRewriterPatterns(NAT lan_interface 50000-65535 - -);
+    tcp_rw :: TCPRewriter(pattern NAT 0 0);
+    udp_rw :: UDPRewriter(pattern NAT 0 0);
+    
+    input[0] -> ip_rw_l;
+
+    ip_rw_l[0] -> [0]tcp_rw;
+    ip_rw_l[1] -> [0]udp_rw;
+    ip_rw_l[2] -> Print(NonTCPorUDP) -> Discard;
+
+    tcp_rw[0] -> [0]output;
+    udp_rw[0] -> [0]output;
+}
+
+// Module's I/O
+nicIn0  :: FromDPDKDevice($iface, MAXQUEUES $rxQueues, N_QUEUES $rxQueues, NDESC $ndesc, BURST $burst, PROMISC $promisc, MTU $mtu, PAUSE $pause, LRO $lro, RSS_AGGREGATE $rssAgg, VERBOSE $verbose);
+nicOut0 :: ToDPDKDevice($iface, IQUEUE $txQueueSize, BURST $burst, BLOCKING false);
+
+// Classifier to split ARP from IP
+class_left :: Classifier(12/0806 20/0001,  // ARP query
+                         12/0806 20/0002,  // ARP response
+                         12/0800);         // IPv4
+
+set_count :: SetCycleCount;
+cycle_counter :: CycleCountAccum;
+
+// Static ARP using direct EtherEncap
+// arpq_left :: ARPQuerier(lan_interface) -> nicOut0;
+arpq_left :: EtherEncap(0x0800, SRC ${dut:0:mac}, DST ${client:0:mac}) -> txCount :: Counter -> cycle_counter -> nicOut0;
+
+// Firewall logic
+ipFilter :: $(( "IPFilter(CACHING $FWCACHING, file ${rules});" if $FW else "{[0]->[0];Idle->[1];}" ))
+ipFilter[0] $NATMODULE $DPIMODULE -> arpq_left;
+
+ipFilter[1]
+    -> dropped :: AverageCounterMP
+    -> IPPrint(FW-DROPPED:, LENGTH true, TTL true)
+    -> arpq_left;
+
+
+// Wiring
+nicIn0 -> set_count -> rxCount :: Counter -> class_left;
+
+class_left[0] -> Print("ARP REQUEST") -> ARPResponder(lan_interface) -> nicOut0;
+class_left[1] -> Print("ARP REPLY") -> Discard;
+class_left[2]
+    -> CheckIPHeader(OFFSET 14, CHECKSUM false)
+    -> bub :: BurstStats
+    -> aggLen :: AggregateLength
+    -> avgBatchCnt :: AverageBatchCounter(LENGTH_STATS true)
+    -> tcpudpcls :: IPClassifier (tcp or udp, -)
+    $FCMODULE
+    -> pms :: PacketMemStats
+    -> Strip(14)
+    ${ROUTER_E}
+    -> ipFilter;
+
+noudptcp :: Counter;
+tcpudpcls[1] -> noudptcp -> Discard;
+
+DriverManager(
+    wait,
+    read nicIn0.xstats,
+    print "======================================================",
+    print "          RESULT-DUT-ALIGNED-COUNT "$(pms.aligned_pkts),
+    print "        RESULT-DUT-UNALIGNED-COUNT "$(pms.unaligned_pkts),
+    print "RESULT-DUT-ALIGNED-UNALIGNED-COUNT "$(pms.total_pkts),
+    print "               RESULT-DUT-TD-COUNT "$(nicOut0.count),
+    print "               RESULT-DUT-HW-COUNT "$(nicIn0.hw_count),
+    print "               RESULT-DUT-SW-COUNT "$(nicIn0.count),
+    print "                 RESULT-DUT-CYCLES "$(cycle_counter.cycles),
+    print "              RESULT-DUT-CYCLES-PP "$(cycle_counter.cycles_pp), 
+    print "          RESULT-DUT-ALIGNED-RATIO "$(pms.aligned_pkts_ratio),
+    print "        RESULT-DUT-UNALIGNED-RATIO "$(pms.unaligned_pkts_ratio),
+    print "          RESULT-TOT-AVG-FRAME-LEN "$(avgBatchCnt.average_frame_len_total),
+    print "              RESULT-USEFUL-CYCLES "$(useful_kcycles),
+    print "                  RESULT-RCV-BURST "$(bub.avg),
+    print "             RESULT-DUT-NO-TCP-UDP "$(noudptcp.count),
+    print "======================================================",
+    print "DUT-MAC "${dut:0:mac},
+    print "DUT-PCI "${dut:0:pci},
+    print "CLIENT-MAC "${client:0:mac},
+    print "CLIENT-PCI "${client:0:pci},
+    print "TX-COUNT "$(txCount.count),
+    print "RX-COUNT "$(rxCount.count),
+);
+//--------------------------- End of Chain  --------------------------
+
+//-------------------------------- Beginning of Chain  -------------------------------
+
+%chain:script@dut sudo=true waitfor=GEN_DONE
+
+if $cache-stats-enabled ; then
+    sh cache-stats.sh stats.log
+fi
+
+
+// Single-side packet-based NAT
+%chain:script@dut sudo=true waitfor=TRACE_FINISHED
+
+if $cache-stats-enabled ; then
+    perf stat -a -I 100 -C 0-${DUT_CORES} -e "LLC-loads,LLC-load-misses,L1-dcache-load-misses,L1-dcache-loads,cycles" -o stats.log -D 10000 &
+    echo "perf started!"
+fi
+
+$GDB click --dpdk -l 0-${DUT_CORES} -w ${dut:0:pci},dv_flow_en=1 -- chain.config
+
+//----------------------------------- End of Chain ----------------------------------
+
+
+//--------- Calculating the stats per packet at the end of each experiment ----------
+
+%pyexit
+import sys
+RESULTS["MISSES-PP"] = RESULTS["TOTAL-L1-MISSES"] / RESULTS["DUT-HW-COUNT"]
+RESULTS["LLC-MISSES-PP"] = RESULTS["TOTAL-LLC-MISSES"] / RESULTS["DUT-HW-COUNT"]
+RESULTS["L2-MISSES-PP"] = RESULTS["TOTAL-LLC-LOADS"] / RESULTS["DUT-HW-COUNT"]
+
+//-----------------------
+// Script Files
+//-----------------------
+
+%file cache-stats.sh
+#! /bin/bash
+
+FILE=$1
+
+kill_current_running_perfs () {
+    perf_pids="$(ps -A | grep perf | awk '{print $1}')"
+    for pid in $perf_pids; do
+        kill -9 $pid
+    done
+}
+
+calculate_and_print_stats () {
+    load_misses=$(perl -pe 's/(?<=\d),(?=\d)//g' $FILE | awk '$3 == "LLC-load-misses" {print $2}')
+    count=0
+    total_misses=0
+
+    for miss in $load_misses; do
+        num=$(echo $miss | tr -dc '0-9')
+        count=`expr $count + 1`
+        total_misses=`expr $total_misses + $num`
+    done
+    echo "RESULT-TOTAL-LLC-MISSES $total_misses"
+
+    ############################################
+    
+    loads=$(perl -pe 's/(?<=\d),(?=\d)//g' $FILE | awk '$3 == "LLC-loads" {print $2}')
+    total_loads=0
+
+    for load in $loads; do
+        num=$(echo $load | tr -dc '0-9')
+        total_loads=`expr $total_loads + $num`
+    done
+    echo "RESULT-TOTAL-LLC-LOADS $total_loads"
+
+    ############################################
+
+    l1loads=$(perl -pe 's/(?<=\d),(?=\d)//g' $FILE | awk '$3 == "L1-dcache-loads" {print $2}')
+    total_l1loads=0
+
+    for l1load in $l1loads; do
+        num=$(echo $l1load | tr -dc '0-9')
+        total_l1loads=`expr $total_l1loads + $num`
+    done
+    echo "RESULT-TOTAL-L1-LOADS $total_l1loads"
+
+    ###########################################
+
+    l1load_misses=$(perl -pe 's/(?<=\d),(?=\d)//g' $FILE | awk '$3 == "L1-dcache-load-misses" {print $2}')
+    total_l1misses=0
+
+    for l1miss in $l1load_misses; do
+        num=$(echo $l1miss | tr -dc '0-9')
+        total_l1misses=`expr $total_l1misses + $num`
+    done
+    echo "RESULT-TOTAL-L1-MISSES $total_l1misses"
+
+    ###########################################
+    
+    l1missratio=`echo $total_l1misses / $total_l1loads | bc -l`
+    echo "RESULT-L1-RATIO $l1missratio"
+
+    llcmissratio=`echo $total_misses / $total_loads | bc -l`
+    echo "RESULT-LLC-RATIO $llcmissratio"
+
+}
+
+if test -f "$FILE"; then
+    echo "starting cache analyze!"
+    kill_current_running_perfs
+    calculate_and_print_stats
+    rm -rf $FILE
+fi
+
