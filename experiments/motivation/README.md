@@ -18,6 +18,6 @@ In this experiment the client generates a synthetic trace file with various Spat
 You can use `make network-functions` to run this experiment. 
 
 - **Network Stack Effects:** This experiment shows the impact of packets locality (SLF) on performance of Linux kernel networking stack!
-We use `iperf` to make hundreds of parallel TCP connection between the client and DUT. We also modify the default Linux `tc` queuing discipline to form the desired SLF value. 
+We use `iperf` to make hundreds of parallel TCP connection between the client and DUT. We also modify the default Linux `tc` queuing discipline to form the desired SLF value. You can use `make network-stack` to run this experiment.
 
 [testbed-guide]: https://github.com/hamidgh09/Reframer/blob/main/README.md#testbed
