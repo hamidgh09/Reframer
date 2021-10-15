@@ -41,7 +41,32 @@ python3 -m pip install --user npf
 
 **Do not forget to add `export PATH=$PATH:~/.local/bin` to `~/.bashrc` or `~/.zshrc`. Otherwise, you cannot run `npf-compare` and `npf-run` commands.** 
 
+NPF will look for `cluster/` and `repo/` in your current working/testie directory. We have included the required `repo` for our experiments and a sample `cluster` template, available at `experiment/`. For more information about how to setup your cluster please check the [NPF guidelines][NPF-cluster].
 
+NPF automatically clone and build FastClick for the experiments based on the testie/npf files.
+
+### Data Plane Development Kit (DPDK)
+We use DPDK to bypass kernel network stack in order to achieve line rate in our tests. To build DPDK, you can run the following commands:
+
+```
+git clone https://github.com/DPDK/dpdk.git
+cd dpdk
+git checkout v20.02
+make install T=x86_64-native-linux-gcc
+```
+In case you want to use a newer (or different) version of DPDK, please check [DPDK documentation][dpdk-doc].
+
+After building DPDK, you have to define `RTE_SDK` and `RTE_TARGET` by running the following commands:
+
+```
+export RTE_SDK=<your DPDK root directory>
+export RTE_TARGET=x86_64-native-linux-gcc
+```
+Also, do not forget to setup hugepages. To do so, you can modify `GRUB_CMDLINE_LINUX` variable in `/etc/default/grub` file similar to the following configuration:
+
+```
+GRUB_CMDLINE_LINUX="isolcpus=0,1,2,3,4,5,6,7,8,9 iommu=pt intel_iommu=on default_hugepagesz=1G hugepagesz=1G hugepages=32 acpi=on selinux=0 audit=0 nosoftlockup processor.max_cstate=1 intel_idle.max_cstate=0 intel_pstate=on nopti nospec_store_bypass_disable nospectre_v2 nospectre_v1 nospec l1tf=off netcfg/do_not_use_netplan=true mitigations=off"
+```
 ## Citing our paper
 If you use Reframer, please cite our paper:
 
@@ -65,3 +90,5 @@ If you have any question regarding the code or the paper you can contact me (ham
 [FastClick]: https://github.com/tbarbette/fastclick
 [NPF]: https://github.com/tbarbette/npf
 [Gnuplot]: http://www.gnuplot.info/
+[NPF-cluster]: https://github.com/tbarbette/npf/blob/master/cluster/README.md
+[dpdk-doc]: https://doc.dpdk.org/guides/linux_gsg/index.html
