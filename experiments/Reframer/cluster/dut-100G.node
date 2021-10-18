@@ -1,0 +1,8 @@
+path=/home/hamid/npf/npf
+addr=nslrack24.ssvl.kth.se
+arch=cascadelake
+
+0:ifname=ens1f0
+0:pci=0000:11:00.0
+0:mac=b8:83:03:6f:43:20
+0:ip=10.100.0.24
