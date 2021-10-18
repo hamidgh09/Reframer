@@ -87,6 +87,7 @@ GEN_DUMP=1
 GEN_PIPELINE=0
 
 FWCACHING=true
+rules=/home/hamid/workspace/reframer/rules-msft-merged
 msft|msft-rx:rules=/home/hamid/workspace/reframer/rules-msft
 msftmerged|all-tx|all-rx:rules=/home/hamid/workspace/reframer/rules-msft-merged
 google:rules=/home/hamid/workspace/reframer/rules-google
