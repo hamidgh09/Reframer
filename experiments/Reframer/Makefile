@@ -12,4 +12,4 @@ checkout_trace:
 	done
 
 test_external:
-	npf-compare "local+chain,fw,nat,fc,router,reclass:Baseline" "local+chain,fw,nat,fc,router,reclass,sf:Reframer" --testie chain-pcap.testie --cluster ${NPF_CLUSTER} --tags promisc reframer dutmid --config n_runs=1 --variables trace=trace/bin-final.dump GEN_MULTI_TRACE=15 --force-test
+	npf-compare "local+chain,fw,nat,fc,router,reclass:Baseline" "local+chain,fw,nat,fc,router,reclass,sf:Reframer" --testie chain-pcap.testie --cluster ${NPF_CLUSTER} --tags promisc reframer dutmid --config n_runs=1 --variables trace=$(CURDIR)/trace/bin-final.dump GEN_MULTI_TRACE=15 --force-test --show-full --show-cmd
