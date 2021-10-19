@@ -6,7 +6,11 @@ To run these experiments you need 3 servers connected back-to-back. The first an
 **Note that you need to setup your testbed before running any experiment.**
 
 ## Reframer on a dedicated server
-In this experiment Reframer works on a dedicated server (the middle one), to show the maximum throughput and latency benefit that it can bring for the DUT! To do this experiment you can run `make test_external`. The output of this experiment, should be a figure, similar to the following:
+In this experiment Reframer works on a dedicated server (the middle one), to show the maximum throughput and latency benefit that it can bring for the DUT! To do this experiment you can run `make test_external`. The output of this experiment, should be multiple figures, similar to the following:
+
+<p align="center">
+<img src="figures/external_throughput.png" width="50%">
+</p>
 
 shows the effectiveness of Reframer in improving the performance of the NF chain for different workloads (load is expressed as the number of parallel trace segments).
 
@@ -15,6 +19,12 @@ shows the effectiveness of Reframer in improving the performance of the NF chain
 In the following experiments, we evaluate deploying Reframer on the same server where an application is running.
 We divide this part in two different experiments. The first experiment measures the maximum throughput of the DUT with and without deploying Reframer at the start of the chain. You can use `make test_in_chain_max_rate` to run this measurement. The output of this experiment should be a figure, similar to the following:
 
+<p align="center">
+<img src="figures/InChain_Throughput.png" width="50%">
+</p>
 
 In the second experiment we measure the impact of Reframer on the latency of packets. To do so, we decrease the replaying rate to the maximum rate supported by DUT when Reframer does not exist in the chain; hence, it will be a fare comparison. To do the experiment you can run `make test_in_chain_latency`. The output latency of this experiment should be similar to the following figure:
 
+<p align="center">
+<img src="figures/InChain_Latency.png" width="50%">
+</p>
