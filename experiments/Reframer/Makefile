@@ -20,7 +20,7 @@ checkout_trace:
 test_external:
 	npf-compare \
 	"local+chain,fw,nat,fc,router,reclass:Baseline" \
-	"local+chain,fw,nat,fc,router,reclass,sf:Reframer" \
+	"local+chain,fw,nat,fc,router,reclass,sf:Reframer-External" \
 	--testie chain-pcap.testie \
 	--cluster ${NPF_CLUSTER} \
 	--tags promisc reframer dutmid \
@@ -30,3 +30,17 @@ test_external:
 	--graph-size 5 2.3 \
 	--graph-filename $(CURDIR)/results/.pdf \
 	--output ${OUTPUT_COLUMNS}
+
+test_in_chain:
+	npf-compare \
+        "local+chain,fw,nat,fc,router,reclass:Baseline" \
+        "local+chain,fw,nat,fc,router,reclass,sfmerge:Reframer-InChain" \
+        --testie chain-pcap.testie \
+        --cluster ${NPF_CLUSTER} \
+        --tags promisc reframer dutmid \
+        --config n_runs=1 \
+        --variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump GEN_MULTI_TRACE=14 rules=${FW_RULES}\
+        --force-test --show-full --show-cmd \
+        --graph-size 5 2.3 \
+        --graph-filename $(CURDIR)/results/.pdf \
+        --output ${OUTPUT_COLUMNS}
