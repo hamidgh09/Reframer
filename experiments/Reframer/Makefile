@@ -25,7 +25,7 @@ test_external:
 	--cluster ${NPF_CLUSTER} \
 	--tags promisc reframer dutmid \
 	--config n_runs=1 \
-	--variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump SFDELAY=64 rules=${FW_RULES}\
+	--variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump SFDELAY=64 rules=${FW_RULES} \
 	--force-test --show-full --show-cmd \
 	--graph-size 5 2.3 \
 	--graph-filename $(CURDIR)/results/.pdf \
@@ -39,7 +39,7 @@ test_in_chain:
         --cluster ${NPF_CLUSTER} \
         --tags promisc reframer dutmid \
         --config n_runs=1 \
-        --variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump GEN_MULTI_TRACE=14 rules=${FW_RULES}\
+        --variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump GEN_MULTI_TRACE=14 rules=${FW_RULES} \
         --force-test --show-full --show-cmd \
         --graph-size 5 2.3 \
         --graph-filename $(CURDIR)/results/.pdf \
