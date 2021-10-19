@@ -5,6 +5,8 @@ NPF_CLUSTER?=dut=nslrack24,nic=0 reframer=nslrack10,nic=0+1 client=nslrack20,nic
 
 OUTPUT_COLUMNS?=--output-columns x perc1 perc25 median perc75 perc99 --no-graph-time
 
+FW_RULES?=$(CURDIR)/fw-rules
+
 checkout_trace:
 	mkdir -p trace
 	mkdir -p results
@@ -23,7 +25,7 @@ test_external:
 	--cluster ${NPF_CLUSTER} \
 	--tags promisc reframer dutmid \
 	--config n_runs=1 \
-	--variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump SFDELAY=64 \
+	--variables trace=$(CURDIR)/trace/synthetic-onedrive-sampled.dump SFDELAY=64 rules=${FW_RULES}\
 	--force-test --show-full --show-cmd \
 	--graph-size 5 2.3 \
 	--graph-filename $(CURDIR)/results/.pdf \

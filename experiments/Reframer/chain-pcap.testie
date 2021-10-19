@@ -8,21 +8,9 @@ Example usage:
 // List of variables
 %variables
 
-// generator script directory
-WORKING_DIR=/home/hamid/workspace
-
 // Trace files location
+trace=/mnt/traces/caida.pcap
 
-msftmerged:trace=/mnt/traces/campus-split/merged_trace/merged.pcap
-msft:trace=/mnt/traces/campus-split/msft-rewrite/msft.pcap
-msft-rx:trace=/mnt/traces/campus-split/msft-rx-marked/msft-rx.pcap
-google:trace=/mnt/traces/campus-split/google-marked/google-marked.pcap
-google-rx:trace=/mnt/traces/campus-split/google-rx/google-rx.pcap
-//all-tx:trace=/mnt/traces/campus-split/all_tx/all.pcap
-all-tx:trace=/mnt/traces/campus-split/ip_summary_tx/all-4combined.dump
-all-rx:trace=/mnt/traces/campus-split/ip_summary_rx/all-4combined.dump
-//trace=/mnt/traces/caida.pcap
-//trace=/mnt/traces/20190507.morning.tx.ip.anon.nopayload.pcap
 // Pause the sender until the receiver gets all packets
 PAUSE=full
 
@@ -55,7 +43,6 @@ LIMIT=100000000
 
 GEN_TIME=3
 LIMIT_TIME=3
-msftmerged:GEN_TIME=3
 
 // Number of buffers in generator
 NBBUF=10000000
@@ -82,17 +69,12 @@ TIMING=true
 -http:GEN_THREADS=6
 GEN_TRACES=10
 // GEN_MULTI_TRACE=[2-28#2]
-GEN_MULTI_TRACE=[1-20]
+GEN_MULTI_TRACE=[1-24]
 GEN_DUMP=1
 GEN_PIPELINE=0
 
 FWCACHING=true
 rules=/home/hamid/workspace/reframer/rules-msft-merged
-msft|msft-rx:rules=/home/hamid/workspace/reframer/rules-msft
-msftmerged|all-tx|all-rx:rules=/home/hamid/workspace/reframer/rules-msft-merged
-google:rules=/home/hamid/workspace/reframer/rules-google
-google-rx:rules=/home/hamid/workspace/reframer/rules-google-rx
-//rules= /home/hamid/workspace/reframer/allow
 DDIO=2
 
 CAPACITY=2000000
@@ -249,7 +231,7 @@ lb,reclass:MB+=EXPAND( -> FlowIPManagerIMP(CAPACITY $CAPACITY) )
 lb:MB+= -> FlowIPLoadBalancer(DST 10.0.0.100, VIP 10.0.0.1)
 
 dpi,reclass:MB+=EXPAND( $(("->Pipeliner()" if $PIPELINE else "")) -> FlowIPManagerIMP(CAPACITY $CAPACITY) )
-dpi:MB+= -> FlowHyperScan(FILE /home/hamid/workspace/reframer/patterns, VERBOSE 0)
+dpi:MB+= -> FlowHyperScan(FILE /path/to/dpi/patterns, VERBOSE 0)
 
 fc,reclass:MB+=EXPAND( $(( "-> Pipeliner()" if $PIPELINE else "" )) -> FlowIPManagerIMP(CAPACITY $CAPACITY) )
 fc:MB+= -> fc :: FlowCounter
@@ -524,7 +506,7 @@ if $cache-stats-enabled ; then
     perf stat -a -I 1000 -C ${DUT_CORES} -e "LLC-loads,LLC-load-misses,L1-dcache-load-misses,L1-dcache-loads,cycles" -o stats.log
 fi
 
-// Single-side packet-based NAT
+// Chain
 %-bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED
 
 $GDB /home/hamid/npf/npf/build/fastclick/bin/click --dpdk -l 0-$(( $N_CORES - 1 )) -w ${dut:0:pci},dv_flow_en=1 --file-prefix=${DUT_PREFIX} -- chain.config
