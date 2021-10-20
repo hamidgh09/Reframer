@@ -5,6 +5,9 @@ To run these experiments you need 3 servers connected back-to-back. The first an
 
 **Note that you need to setup your testbed before running any experiment.**
 
+## Trace file
+All the experiments in our paper have been performed using a captured trace from the KTH campus. Unfortunately, we would not be able to make the campus trace available to the public due to GDPR. However, we provide the following experiments that use synthetic traces to validate the reusability and effectiveness of Reframer. You can use `make checkout_trace` to download trace files before running the experiments.
+
 ## Reframer on a dedicated server
 In this experiment Reframer works on a dedicated server (the middle one), to show the maximum throughput and latency benefit that it can bring for the DUT! To do this experiment you can run `make test_external`. The output of this experiment, should be multiple figures, similar to the following:
 
