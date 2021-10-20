@@ -9,7 +9,7 @@ Reframer is a [FastClick][Fastclick] based Network Function (NF) that leverages 
 
 Reframer is developed on [FastClick][Fastclick], but it could be adapted to other packet processing frameworks!
 
-For more information check out our paper at NSDI '22.
+For more information check out our [paper][om] at NSDI '22.
 
 ## Download
 
@@ -92,3 +92,4 @@ If you have any question regarding the code or the paper you can contact me (ham
 [Gnuplot]: http://www.gnuplot.info/
 [NPF-cluster]: https://github.com/tbarbette/npf/blob/master/cluster/README.md
 [dpdk-doc]: https://doc.dpdk.org/guides/linux_gsg/index.html
+[om]: https://www.usenix.org/conference/nsdi22/presentation/ghasemirahni
