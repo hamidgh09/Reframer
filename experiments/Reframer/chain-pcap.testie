@@ -25,10 +25,13 @@ N_CORES=8
 // RX_QUEUES=8
 // sf|sfmerge:RX_QUEUES=4
 // Number of cores for REFRAMER
-sf:SFTHREADS=6
+SFTHREADS=6
 SMTHREADS=2
 http:SFTHREADS=2
 http:SMTHREADS=4
+
+CLIMINQUEUES=6
+DCMINQUEUES=2
 
 // To avoid interferences
 DUT_PREFIX=dut
@@ -39,13 +42,13 @@ bf:DUT_PREFIX=dutBF
 TX_QUEUE_SIZE=1024
 
 // Total number of packets
-LIMIT=100000000
+LIMIT=12000000
 
-GEN_TIME=3
-LIMIT_TIME=3
+GEN_TIME=2
+LIMIT_TIME=2
 
 // Number of buffers in generator
-NBBUF=10000000
+NBBUF=12000000
 
 PKTGEN_BLOCKING=0
 
@@ -507,9 +510,9 @@ if $cache-stats-enabled ; then
 fi
 
 // Chain
-%-bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED
+%-bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED deps=fastclick
 
-$GDB /home/hamid/npf/npf/build/fastclick/bin/click --dpdk -l 0-$(( $N_CORES - 1 )) -w ${dut:0:pci},dv_flow_en=1 --file-prefix=${DUT_PREFIX} -- chain.config
+$GDB click --dpdk -l 0-$(( $N_CORES - 1 )) -w ${dut:0:pci},dv_flow_en=1 --file-prefix=${DUT_PREFIX} -- chain.config
 
 %bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED deps=fastclick-flow
 
