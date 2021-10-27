@@ -10,7 +10,7 @@ All the experiments in our [paper][om] have been performed using a captured trac
 
 ## Custom trace file
 In current experiments, we use `IPSummaryDump` files to replay our trace files!
-In case you want to run the experiment with your own `.pcap` trace file, you need to add `--variables GEN_DUMP=0` at the NPF commands and also, modify `GEN_MULTI_TRACE` to the proper value for your trace files. Read the generator module [configuration file][generator] for more information on this!
+In case you want to run the experiment with your own `.pcap` trace file, you need to add `--variables GEN_DUMP=0` at the end of NPF commands and also, modify `GEN_MULTI_TRACE` to the proper value for your trace files. Read the generator module [configuration file][generator] for more information on this!
 
 ## Reframer on a dedicated server
 In this experiment Reframer works on a dedicated server (the middle one), to show the maximum throughput and latency benefit that it can bring for the DUT! To do this experiment you can run `make test_external`. The output of this experiment, should be multiple figures, similar to the following:
