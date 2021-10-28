@@ -1,9 +1,13 @@
 # Reframer Experiments
 This directory contains configuration files and information about deploying Reframer in the network and evaluating the impact of Reframer on a chain of network functions.
 
+## Testbed
+
 To run these experiments you need 3 servers connected back-to-back. The first and last server act as traffic generator and DUT (Device Under Test) respectively, and we deploy an instance of Reframer on the middle server when we want to analyze the impact of an stand alone Refrmer on the DUT performance. 
 
-**Note that you need to setup your testbed before running any experiment.**
+**Note that you need to [setup][testbed_setup] your testbed before running any experiment.**
+
+You also need to copy repository configurations from `repo/` directory to your NPF repo directory.
 
 ## Trace file
 All the experiments in our [paper][om] have been performed using a captured trace from the KTH campus. Unfortunately, we would not be able to make the campus trace available to the public due to GDPR. However, we provide the following experiments that use synthetic traces to validate the reusability and effectiveness of Reframer. You can use `make checkout_trace` to download trace files before running the experiments.
@@ -38,3 +42,4 @@ In the second experiment we measure the impact of Reframer on the latency of pac
 
 [om]: https://www.usenix.org/conference/nsdi22/presentation/ghasemirahni
 [generator]: https://github.com/tbarbette/npf/blob/master/modules/fastclick-play-single-mt.npf
+[testbed_setup]: https://github.com/hamidgh09/Reframer#testbed
