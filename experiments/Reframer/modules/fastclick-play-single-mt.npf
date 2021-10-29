@@ -1,0 +1,318 @@
+%info
+Module to replay a trace or a dump with throughput and latency measurement
+
+Packets are directed towards one NIC of the "server" role using one NIC of the CLIENT and expect to receive packets back on any (eventyally the same) NIC. There is no L3 support (ARP).
+
+Suggested usage example in your testie (omit the prefixed "//" that prevent loop import here)
+
+//%import@client fastclick-replay-single-mt trace=path/to.pcap NIC=0 CLIENT_NIC=0
+
+Set GEN_DUMP=1 to use a FromIPSummaryDump instead of FromDump, the trace parameter should therefore follow the FromIPSummaryDump format. Similarly, use GEN_DUMP=2 to use FromMinDump.
+
+The normal way to use multi-threading would be to round-robin the trace between the threads. Use the "GEN_MULTI_TRACE=1" to use multiple traces, using -1, -2, ... -GEN_THREADS suffixes to the trace.
+
+Use the "gen_nolat" tag to disable latency tracking. This cannot be done using variables.
+
+%config
+n_retry=0
+n_runs=1
+require_tags=import
+timeout=60
+default_role_map+={server:dut}
+
+%variables
+PKTGEN_BURST_OUT=32
+PKTGEN_REPLAY_COUNT=1
+NIC=0
+CLIENT_NIC=0
+RCV_NIC=0
+LIMIT=50000000
+LIMIT_TIME=65
+GEN_THREADS=4
+GEN_PIPELINE=1
+GEN_TX_PIPELINE=0
+GEN_SOCKET=0
+GEN_BURST=32
+PROMISC=false
+promisc:PROMISC=true
+IGNORE?=0
+PAUSE=none
+GEN_DESC=0
+END_AFTER=0
+GEN_RATE?=-1
+LATENCYDUMP=/tmp/latency.csv
+ITERATION_TIME?=0
+GEN_MULTI_TRACE=0
+GEN_DUMP=0
+gen_dump:GEN_DUMP=1
+gen_mindump:GEN_DUMP=2
+udpgen:GEN_DUMP=-1
+
+%late_variables
+GEN_TX_DESC?=EXPAND($GEN_DESC)
+GEN_NGEN=EXPAND( $((1 if $GEN_PIPELINE else max($GEN_THREADS,$GEN_MULTI_TRACE) )) )
+UNQUEUE=
+udpgen:UNQUEUE=Unqueue()
+rate:UNQUEUE=EXPAND( BandwidthRatedUnqueue( $(( int($GEN_RATE / $GEN_NGEN) )), EXTRA_LENGTH true, LINK_RATE true, BURST_DURATION 1, BURST 1) )
+prate:UNQUEUE=EXPAND( RatedUnqueue($(( int($GEN_RATE / $GEN_NGEN)  )), BURST 1) )
+HAVE_UNQUEUE?=0
+udpgen|prate|rate|replay:HAVE_UNQUEUE=1
+// NRECORD=EXPAND( $(( ($LIMIT + 1024) * 2 )) )
+NRECORD=20000000
+BROADCAST_IGNORE= -> c :: Classifier(0/$mac,-) //Ignore broadcasts
+GEN_NOREWRITE_ETHER?=0
+TIMING?=false
+GEN_BLOCKING=true
+TIMING_FNT?=
+SAMPLE?=10
+DODUMP?=0
+dump:DODUMP=1
+DOLATVAL=0
+latval:DOLATVAL=1
+gdb:GEN_GDB=gdb -ex run -ex "signal 2" -ex "bt" -batch -args
+
+gen_nolat:DOLAT=0
+gen_nolat:GEN_TSDIFF=NoTimestampDiff
+gen_nolat:GEN_NUMBER= -> check :: MarkIPHeader
+gen_nolat:GEN_RECORD=
+gen_nolat:GEN_MAGIC=EXPAND(-> magic :: {[0]-> RoundRobinSwitch(SPLITBATCH false)[0-$(( $GEN_THREADS - 1 ))] => [0-$(( $GEN_THREADS - 1 ))]output;Idle->[$GEN_THREADS]output;})
+GEN_TSDIFF?=TimestampDiff
+-gen_preped:GEN_NUMBER?= -> check :: MarkIPHeader  -> nPacket :: NumberPacket(42) -> StoreData(40, $magic)
+GEN_RECORD?=EXPAND(-> rt :: RecordTimestamp(N $NRECORD, OFFSET 56))
+GEN_MAGIC?=EXPAND(    -> magic :: Classifier( $(( ", ".join([ "40/57%02x" % t for t in range($GEN_THREADS) ]) )),  -);)
+DOLAT?=1
+FDDISPATCH=EXPAND( $((" rr :: RoundRobinSwitch(SPLITBATCH false);" if $GEN_THREADS > 1 and $GEN_PIPELINE else "rr :: MyNull;")) )
+NBBUF?=200000
+
+gen_preped:GEN_NUMBER= -> MarkIPHeader
+gen_preped:FDDISPATCH?=  rr :: Classifier( 40/5741,  40/5722,    40/57E3,      40/5774);
+gen_preped:FDDISPATCH=EXPAND( rr :: Classifier( $(( ", ".join([ "40/57%02x" % t for t in range($GEN_THREADS) ]) )),  -);)
+
+//For UDP gen
+GEN_FLOWS?=128
+
+
+
+%-rate:require
+//test $GEN_RATE -eq -1 || ( echo "GEN_RATE can only be -1 (deactivated) when rate is not given" && exit 1)
+
+%rate:require
+test $GEN_RATE -gt 1 || ( echo "GEN_RATE must be > 0" && exit 1)
+
+%promisc:late_variables
+BROADCAST_IGNORE= -> c :: Classifier(-, 0/ffffffffffff)
+
+
+%script deps=fastclick-light sudo=true delay=2 name=fastclick-play
+$GEN_GDB click --dpdk -l 0-15 -- PKTGEN_CONFIG
+echo "EVENT TX_FINISHED"
+echo "Generator stopped..."
+
+%file PKTGEN_CONFIG
+d :: DPDKInfo($NBBUF)
+
+define($bout $PKTGEN_BURST_OUT)
+define($INsrcmac ${client:$CLIENT_NIC:mac})
+define($RAW_INsrcmac ${client:$CLIENT_NIC:raw_mac})
+
+define($INdstmac ${server:$NIC:mac})
+define($RAW_INdstmac ${server:$NIC:raw_mac})
+
+define($ignore $IGNORE)
+define($replay_count $PKTGEN_REPLAY_COUNT)
+define($port ${self:$RCV_NIC:pci})
+define($quick true)
+define($txverbose 99)
+define($rxverbose 99)
+
+elementclass MyNull { [0-$(( $GEN_NGEN - 1 ))]=>[0- $(($GEN_NGEN - 1)) ]; };
+
+//JiffieClock()
+$(( "\n".join( [ "fdIN%d :: FastUDPFlows(RATE 0, LIMIT -1, LENGTH $GEN_LENGTH, SRCETH $INsrcmac, DSTETH $INdstmac, SRCIP ${client:0:ip}, DSTIP ${server:0:ip}, FLOWS $GEN_FLOWS, FLOWSIZE $GEN_BURST)" % t if $GEN_DUMP==-1 else (  "fdIN%d :: FromDump(%s, STOP true, TIMING $TIMING, TIMING_FNT \"$TIMING_FNT\", END_AFTER $END_AFTER, ACTIVE true, BURST 1);" if $GEN_DUMP == 0 else "fdIN%d :: FromIPSummaryDump(%s, TIMES $replay_count, TIMING $TIMING, TIMESTAMP $TIMING, ZERO false, BURST $GEN_BURST, STOP true);" if $GEN_DUMP==1 else "fdIN%d :: FromMinDump(%s, TIMES $replay_count,  BURST $GEN_BURST, STOP , DPDK true);") % (t, ("${trace}-"+str(t+1) ) if $GEN_MULTI_TRACE else "$trace") for t in range( $GEN_NGEN )  ] ) ))
+
+tdIN ::
+ $(( " Pipeliner(CAPACITY 1024, ALWAYS_UP true) -> " if $GEN_TX_PIPELINE == 1 else "PathSpinlock -> " if $GEN_TX_PIPELINE == 2 else "" ))
+    ToDPDKDevice($port, BLOCKING $GEN_BLOCKING, BURST $bout, VERBOSE $txverbose, IQUEUE $bout, NDESC $GEN_TX_DESC, IPCO true )
+
+elementclass NoTimestampDiff { $a, $b, $c, $d |
+input -> output;
+Idle->[1]output;
+}
+
+elementclass Numberise { $magic |
+    input-> Strip(14)
+    $GEN_NUMBER
+    -> ResetIPChecksum() -> Unstrip(14) -> output
+}
+
+ender :: Script(TYPE PASSIVE,
+                print "Limit of $LIMIT reached",
+                stop,
+                stop);
+$FDDISPATCH
+
+$(( "\n".join([ ( "fdIN%d" % (t) + (  ("-> limit%d   :: Counter(COUNT_CALL "+str(int($LIMIT / $GEN_NGEN) ) +" ender.run)") % (t) if $LIMIT > 0 else "" ) + ( ( "-> unqueue%d :: " % t + str( "$UNQUEUE") ) if $HAVE_UNQUEUE else "" ) + " -> [%d]rr" % (t) ) for t in range($GEN_NGEN) ] ) ))
+
+elementclass Generator { $magic |
+input
+ $(( " -> replay :: Pipeliner(BLOCKING "+("true" if $GEN_THREADS == 1 else "false")+", CAPACITY 1024, ALWAYS_UP true)" if $GEN_PIPELINE else ""))
+  -> MarkMACHeader
+$(( "-> EnsureDPDKBuffer" if $GEN_DUMP < 2 else "" ))
+$(( "  -> doethRewrite :: { input[0] -> active::Switch(OUTPUT $GEN_NOREWRITE_ETHER)[0] -> rwIN :: EtherRewrite($INsrcmac,$INdstmac) -> [0]output;   active[1] -> [0]output}" if  $GEN_DUMP <= 0 else "-> EtherEncap(0x0800, $INsrcmac, $INdstmac)" ))
+
+$(( "-> Pad " if $GEN_DUMP < 2 else "" ))
+  -> Numberise($magic)
+  -> avgSIN :: AverageCounter(IGNORE $ignore)
+  $GEN_RECORD
+  -> output;
+}
+
+$(( "\n".join( [ "gen%d :: Generator(\<57%02x>) -> tdIN;" % (t,t) for t in range($GEN_THREADS) ] )  ))
+$(( "\n".join( [ "StaticThreadSched(gen%d/replay ${GEN_SOCKET}/%d);" % (t,(t % $GEN_THREADS) + 1)  if $GEN_PIPELINE else ( "StaticThreadSched(fdIN%d ${GEN_SOCKET}/%d " +(", unqueue%d ${GEN_SOCKET}/%d" % (t,(t % $GEN_THREADS) + 1) if $HAVE_UNQUEUE else "" ) + ")") % (t,(t % $GEN_THREADS) + 1) for t in range($GEN_NGEN) ] ) ))
+$(( "\n".join( [ "rr[%d] -> gen%d;" % (t, t%${GEN_THREADS})  for t in range($GEN_MULTI_TRACE if $GEN_MULTI_TRACE else $GEN_THREADS ) ] ) ))
+
+
+$(( " StaticThreadSched(fdIN0 0/0, unqueue0 0/0);" if $GEN_PIPELINE else "" ))
+
+$(( " StaticThreadSched(tdIN 0/%d);" % ($GEN_THREADS + 1) if $GEN_TX_PIPELINE else "" ))
+
+receiveIN :: FromDPDKDevice($port, VERBOSE $rxverbose, MAC $INsrcmac, PROMISC $PROMISC, PAUSE $PAUSE, NDESC $GEN_DESC, MAXTHREADS 4,NUMA false)
+
+elementclass Receiver { $mac, $dir |
+    input[0]
+$BROADCAST_IGNORE
+    -> Strip(14)
+    -> CheckIPHeader(CHECKSUM false)
+
+$GEN_MAGIC
+
+    c[1] //Not for this computer or broadcasts
+    -> Discard;
+
+$((  "\n".join([ "magic[%d] -> tsd%d :: $GEN_TSDIFF(gen%d/rt, OFFSET 42, N $NRECORD, SAMPLE $SAMPLE ) -> Unstrip(14) ->  avg%d :: AverageCounterMP(IGNORE $ignore) -> Discard;  tsd%d[1] -> Print('WARNING: Untimestamped packet on thread %d', 64) -> Discard;" % (t,t,t,t,t,t) for t in range($GEN_THREADS) ]) ))
+
+
+$(( (  "avg :: HandlerAggregate( " + ",".join(["ELEMENT avg%d" % (i) for i in range($GEN_THREADS) ]) + " );" ) if 1 else "" ))
+
+    magic[$GEN_THREADS]
+    -> Unstrip(14)
+    -> Print("WARNING: Unknown magic / untimestamped packet", -1)
+    -> Discard;
+
+
+}
+
+/*Script(TYPE ACTIVE,
+    label loop,
+    read load,
+    wait 1s,
+    goto loop)*/
+
+ig :: Script(TYPE ACTIVE,
+    goto end $(eq $ITERATION_TIME 0),
+    set s $(now),
+    set lastcount 0,
+    set lastbytes 0,
+    set lastsent 0,
+    set lastdrop 0,
+    set last $s,
+    set indexA 0,
+    set indexB 0,
+    set indexC 0,
+    set indexD 0,
+    label loop,
+    wait ${ITERATION_TIME}s,
+    set n $(now), 
+    set t $(sub $n $s),
+    set elapsed $(sub $n $last),
+    set last $n,
+
+                set count $(RIN/avg.add count),
+                set sent $(avgSIN.add count),
+                set bytes $(RIN/avg.add byte_count),
+                print "IG-$t-RESULT-IGCOUNT $(sub $count $lastcount)",
+                print "IG-$t-RESULT-IGSENT $(sub $sent $lastsent)",
+                set drop $(sub $sent $count),
+                print "IG-$t-RESULT-IGDROPPED $(sub $drop $lastdrop)",
+                set lastdrop $drop,
+                print "IG-$t-RESULT-IGTHROUGHPUT $(div $(mul $(add $(mul $(sub $count $lastcount) 24) $(sub $bytes $lastbytes)) 8) $elapsed)",
+                goto next $(eq $DOLAT 0),
+//                print "IG-$t-RESULT-ILAT01 $(RIN/tsd0.perc01 $indexA)",
+//                print "IG-$t-RESULT-ILAT50 $(RIN/tsd0.median $indexA)",
+                print "IG-$t-RESULT-ILATENCY $(RIN/tsd0.average $indexA)",
+//                print "IG-$t-RESULT-ILAT99 $(RIN/tsd0.perc99 $indexA)",
+                set indexA $(RIN/tsd0.index),
+                label next,
+                set lastcount $count,
+                set lastsent $sent,
+                set lastbytes $bytes,
+    goto loop,
+    label end
+)
+
+StaticThreadSched(ig 15);
+
+receiveIN -> RIN :: Receiver($RAW_INsrcmac,"IN");
+
+$(( (  "tsd :: HandlerAggregate( " + ",".join(["ELEMENT RIN/tsd%d" % (i) for i in range($GEN_THREADS) ]) + " );" ) if $DOLAT else "" ))
+
+$(( "avgSIN :: HandlerAggregate( " + ",".join(["ELEMENT gen%d/avgSIN" % (i) for i in range($GEN_THREADS) ]) + " );" ))
+
+dm :: DriverManager(  print "Waiting 2 seconds before launching generation...",
+                wait 2s,
+
+                print "EVENT GEN_BEGIN",
+                print "Starting gen...",
+//                write fdIN.active true,
+                print "Starting timer wait...",
+                set starttime $(now),
+                wait $LIMIT_TIME,
+//                write fdIN.active 0,
+                set stoptime $(now),
+                print "EVENT GEN_DONE",
+                wait 1s,
+                read receiveIN.hw_count,
+                read receiveIN.count,
+                read receiveIN.xstats,
+                goto alatval $(eq $DOLAT 0),
+                goto adump $(eq $DODUMP 0),
+/*                print "Dumping latency samples to $LATENCYDUMP",
+                print >$LATENCYDUMP $(RIN/tsdA.dump_list),
+                print >>$LATENCYDUMP $(RIN/tsdB.dump_list),
+                print >>$LATENCYDUMP $(RIN/tsdC.dump_list),
+                print >>$LATENCYDUMP $(RIN/tsdD.dump_list),*/
+                label adump,
+
+                print "RESULT-LATENCY $(tsd.avg average)",
+                print "RESULT-LAT00 $(tsd.avg min)",
+                print "RESULT-LAT01 $(tsd.avg perc01)",
+                print "RESULT-LAT50 $(tsd.avg median)",
+                print "RESULT-LAT95 $(tsd.avg perc95)",
+                print "RESULT-LAT99 $(tsd.avg perc99)",
+                print "RESULT-LAT100 $(tsd.avg max)",
+                goto alatval $(eq ${DOLATVAL} 0),
+                set i 0,
+                set step 1,
+                label perc,
+                print "CDFLATVAL-$(RIN/tsd.avg perc $i)-RESULT-CDFLATPC $(div $i 100.0)",
+                set i $(add $i $step),
+                set step $(if $(ge $i 99) 0.1 1),
+                goto perc $(le $i 100.0),
+                label alatval,
+                print "RESULT-TESTTIME $(sub $stoptime $starttime)",
+                print "RESULT-RCVTIME $(RIN/avg.avg time)",
+                print "RESULT-THROUGHPUT $(RIN/avg.add link_rate)",
+                set sent $(avgSIN.add count),
+                set count $(RIN/avg.add count),
+                set bytes $(RIN/avg.add byte_count),
+                print "RESULT-COUNT $count",
+                print "RESULT-BYTES $bytes",
+                print "RESULT-SENT $sent",
+                print "RESULT-DROPPED $(sub $sent $count)",
+                print "RESULT-DROPPEDPC $(div $(sub $sent $count) $sent)",
+//                print "RESULT-DROPPEDPS $(div $(sub $sent $count) $(RIN/avg.avg time))",
+                print "RESULT-TX $(avgSIN.add link_rate)",
+                print "RESULT-PPS $(RIN/avg.add rate)",
+                stop);
+
+StaticThreadSched(dm 15);
