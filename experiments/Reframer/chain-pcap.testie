@@ -42,10 +42,10 @@ bf:DUT_PREFIX=dutBF
 TX_QUEUE_SIZE=1024
 
 // Total number of packets
-LIMIT=12000000
+LIMIT=100000000
 
-GEN_TIME=2
-LIMIT_TIME=2
+GEN_TIME=3
+LIMIT_TIME=3
 
 // Number of buffers in generator
 NBBUF=12000000
