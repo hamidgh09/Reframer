@@ -286,17 +286,9 @@ var_grid=True
 %-http:require
 test -n "$trace"
 
-%script@client deps=fastclick autokill=false sudo=true name=gen timeout=1200
+%script@client deps=fastclick-ref autokill=false sudo=true name=gen timeout=1200
 
 echo "TRACE is $trace"
-
-// i=1
-// for index in $(shuf -i 1-47 -n $GEN_TRACES)
-// do
-//     echo "index is $index"
-//     cp $tracebase\-$index $trace\-$i
-//     ((i=i+1))
-// done
 
 echo "GEN_TRACES is $GEN_TRACES"
 echo "N_CORES is $N_CORES"
@@ -510,7 +502,7 @@ if $cache-stats-enabled ; then
 fi
 
 // Chain
-%-bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED deps=fastclick
+%-bf,chain,-http:script@dut sudo=true waitfor=TRACE_FINISHED deps=fastclick-ref
 
 $GDB click --dpdk -l 0-$(( $N_CORES - 1 )) -w ${dut:0:pci},dv_flow_en=1 --file-prefix=${DUT_PREFIX} -- chain.config
 
@@ -615,7 +607,7 @@ exit 0
 
 
 %reframer,-refw:import@reframer reframer
-%reframer,refw:script@reframer sudo=true deps=fastclick
+%reframer,refw:script@reframer sudo=true deps=fastclick-ref
 
 click --dpdk -l 0-15 -- REFRAMER
 
