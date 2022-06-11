@@ -1,5 +1,14 @@
 #!/bin/bash
 
+
+# This script creates an htb qdisc on top of 256 sub tbf queue disciplines to shape outgoing packets according to a given SLF value. 
+# Note that, the maximum sending rate is limited to 8Gbps as forcing a real TCP stack to exhibit a specific SLF at high speeds is extremely hard.
+
+# INPUT VALUES:
+# interleave = SLF * PACKETS_SIZE_IN_BYTE
+# minburst = Minimum burst size for tbf qdisc. You can set it to a value more than PACKETS_SIZE_IN_BYTE (e.g., if packets size is 1500, minburst=1700 would be fine!).
+# ifname = Interface name
+
 interleave=$1
 minburst=$2
 ifname=$3
